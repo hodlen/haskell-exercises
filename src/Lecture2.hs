@@ -38,7 +38,6 @@ module Lecture2
 where
 
 -- VVV If you need to import libraries, do it after this line ... VVV
-import Data.Char (isSpace)
 
 -- ^ ^^ and before this line. Otherwise the test suite might fail  ^^^
 
