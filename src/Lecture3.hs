@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE InstanceSigs #-}
 
 -- |
@@ -107,12 +108,12 @@ have a lawful 'Monoid' instance.
 newtype Gold = Gold
   { unGold :: Int
   }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Num)
 
 -- | Addition of gold coins.
 instance Semigroup Gold where
   (<>) :: Gold -> Gold -> Gold
-  (<>) goldl goldr = Gold {unGold = unGold goldl + unGold goldr}
+  goldl <> goldr = Gold {unGold = unGold goldl + unGold goldr}
 
 instance Monoid Gold where
   mempty :: Gold
@@ -131,11 +132,11 @@ data Reward = Reward
 
 instance Semigroup Reward where
   (<>) :: Reward -> Reward -> Reward
-  (<>) rewardl rewardr = Reward {rewardGold = rewardGold rewardl <> rewardGold rewardr, rewardSpecial = rewardSpecial rewardl && rewardSpecial rewardr}
+  rewardl <> rewardr = Reward {rewardGold = rewardGold rewardl <> rewardGold rewardr, rewardSpecial = rewardSpecial rewardl || rewardSpecial rewardr}
 
 instance Monoid Reward where
   mempty :: Reward
-  mempty = Reward {rewardGold = Gold {unGold = 0}, rewardSpecial = False}
+  mempty = Reward {rewardGold = mempty :: Gold, rewardSpecial = False}
 
 -- | 'List1' is a list that contains at least one element.
 data List1 a = List1 a [a]
@@ -144,7 +145,7 @@ data List1 a = List1 a [a]
 -- | This should be list append.
 instance Semigroup (List1 a) where
   (<>) :: List1 a -> List1 a -> List1 a
-  (<>) (List1 a1 l1) (List1 _ l2) = List1 a1 (l1 ++ l2)
+  (<>) (List1 a1 l1) (List1 a2 l2) = List1 a1 (l1 ++ a2 : l2)
 
 -- | Does 'List1' have the 'Monoid' instance? If no then why?
 --
@@ -227,8 +228,22 @@ types that can have such an instance.
 -- instance Foldable Weekday where
 -- instance Foldable Gold where
 -- instance Foldable Reward where
--- instance Foldable List1 where
--- instance Foldable Treasure where
+instance Foldable List1 where
+  foldMap :: Monoid m => (a -> m) -> List1 a -> m
+  foldMap f list = case list of
+    List1 a [] -> f a
+    List1 a as -> f a <> foldMap f as
+
+instance Foldable Treasure where
+  foldMap :: Monoid m => (a -> m) -> Treasure a -> m
+  foldMap f tr = case tr of
+    NoTreasure -> mempty
+    SomeTreasure a -> f a
+
+  foldr :: (a -> b -> b) -> b -> Treasure a -> b
+  foldr f b tr = case tr of
+    NoTreasure -> b
+    SomeTreasure a -> f a b
 
 {-
 
@@ -243,8 +258,16 @@ types that can have such an instance.
 -- instance Functor Weekday where
 -- instance Functor Gold where
 -- instance Functor Reward where
--- instance Functor List1 where
--- instance Functor Treasure where
+instance Functor List1 where
+  fmap :: (a -> b) -> List1 a -> List1 b
+  fmap f list = case list of
+    List1 a [] -> List1 (f a) []
+    List1 a as -> List1 (f a) (map f as)
+
+instance Functor Treasure where
+  fmap :: (a -> b) -> Treasure a -> Treasure b
+  fmap _ NoTreasure = NoTreasure
+  fmap f (SomeTreasure a) = SomeTreasure (f a)
 
 -- | Functions are first-class values in Haskell. This means that they
 -- can be even stored inside other data types as well!
@@ -261,4 +284,5 @@ types that can have such an instance.
 -- Just [8,9,10]
 -- >>> apply 5 [(+ 3), (* 4), div 17]
 -- [8,20,3]
-apply = error "TODO"
+apply :: Functor f => a -> f (a -> b) -> f b
+apply a = fmap (\f -> f a)
